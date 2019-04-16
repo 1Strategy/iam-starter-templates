@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: This template provisions an IAM Role intended for use by the EC2 service, and an IAM Policy associated with the role that grants read access to all CloudWatch logs.
+
+
+Metadata:
+
+  Authors:
+    Description:  Will Nave (will@1strategy.com)
+
+  Purpose:
+    Description: "This template is used to create an IAM Role and an IAM Policy.  The IAM Role, by
+                  default, is meant to be assumed by one or more IAM Users.  The IAM Policy associated 
+                  with the role provides read-only access to all log groups and log streams assocated 
+                  with the AWS account."
+
+  License:
+    Description: 'Copyright 2019 1Strategy
+
+                  Licensed under the Apache License, Version 2.0 (the "License");
+                  you may not use this file except in compliance with the License.
+                  You may obtain a copy of the License at
+
+                      http://www.apache.org/licenses/LICENSE-2.0
+
+                  Unless required by applicable law or agreed to in writing, software
+                  distributed under the License is distributed on an "AS IS" BASIS,
+                  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                  See the License for the specific language governing permissions and
+                  limitations under the License.'
+
+  AWS::CloudFormation::Interface:
+    
+    ParameterGroups:
+      - 
+        Label:
+          default: "IAM Role and Policy Parameters"
+        Parameters:
+          - ManagedPolicy
+          - Path
+          - PolicyName
+          - RoleName
+
+    ParameterLabels:
+      ManagedPolicy:
+        default: Managed Policy
+      Path:
+        default: Path
+      PolicyName:
+        default: Policy Name
+      RoleName:
+        default: Role Name
+
+Parameters:
+
+  ManagedPolicy:
+    Type: String
+    Description: Would you like to associate a predefined Managed Policy with the IAM Role? (optional)
+    ConstraintDescription: Must be a valid IAM Managed Policy or None.
+    AllowedValues:
+    - Administrator
+    - Billing
+    - DatabaseAdministrator
+    - DataScientist
+    - DeveloperPowerUser
+    - NetworkAdministrator
+    - SecurityAuditor
+    - SupportUser
+    - SystemAdministrator
+    - View-Only
+    - None
+    Default: None
+
+  Path:
+    Type: String
+    Description: What IAM Path would you like to associate with your Role? 
+    AllowedPattern: (^\/$)|(^\/.*\/$)
+    Default: "/"
+
+  PolicyName:
+    Type: String
+    Description: What name would you like to use for the IAM Policy?
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9_+=,.@-]{1,64}$
+    ConstraintDescription: Must be alphanumeric starting with a character of the alphabet, be between 1 and 64 characters in length, and may contain the following special characters _+=,.@-
+
+  RoleName:
+    Type: String
+    Description: Would you like to provide a specific name for the IAM Role? (optional) 
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9]{1,64}$
+    ConstraintDescription: Role name must be between 1 and 64 alphanumeric characters in length, starting with an uppercase or lowercase character of the alphabet.
+    Default: "None"
+
+
+Conditions:
+
+  hasManagedPolicy: 
+    !Not [!Equals [!Ref ManagedPolicy, "None"]]
+
+  hasRoleName: 
+    !Not [!Equals [!Ref RoleName, "None"]]
+
+  hasPolicyName:
+    !Not [!Equals [!Ref PolicyName, "None"]]
+
+
+Resources:
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal: 
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - !If [hasManagedPolicy, !Ref ManagedPolicy, !Ref "AWS::NoValue"]
+      Path: !Ref Path
+      RoleName: !If [hasRoleName, !Ref RoleName, !Ref "AWS::NoValue"]
+
+  Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !If [hasPolicyName, !Ref PolicyName, !Ref "AWS::NoValue"]
+      Roles:
+        - !Ref Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: 
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - logs:DescribeMetricFilters
+            - logs:DescribeSubscriptionFilters
+            - logs:FilterLogEvents
+            - logs:GetLogEvents
+            - logs:ListTagsLogGroup
+            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "This is a policy meant to supply read-only access to all log streams and log groups associated with an AWS account"
+
+
+Outputs:
+
+  RoleName:
+    Description: The Role Name associated with the IAM Role
+    Value: !Ref Role
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", "role-name"]]
+
+  RoleARN:
+    Description: The ARN of the IAM Role
+    Value: !GetAtt Role.Arn
+    Export: 
+      Name: !Join ["-", [!Ref "AWS::StackName", "role-arn"]]
+
+  RoleId:
+    Description: The RoleId of the IAM Role
+    Value: !GetAtt Role.RoleId
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", "role-id"]]
+
+  PolicyName:
+    Description: The Name of the IAM Policy
+    Value: !Ref Policy
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", "policy-name"]]

@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: This template provisions a single IAM Group
+
+
+Metadata:
+
+  Authors:
+    Description:  Will Nave (will@1strategy.com)
+
+  Purpose:
+    Description: "This template is used to create a stack that implements a single IAM Group.  The group can 
+                  be associated with one of several Manged Policies offered by AWS.  Each managed policy maps
+                  to a traditional user job function/role. The stack exports both the group name and ARN on successful 
+                  deployment."
+
+  License:
+    Description: 'Copyright 2019 1Strategy
+
+                  Licensed under the Apache License, Version 2.0 (the "License");
+                  you may not use this file except in compliance with the License.
+                  You may obtain a copy of the License at
+
+                      http://www.apache.org/licenses/LICENSE-2.0
+
+                  Unless required by applicable law or agreed to in writing, software
+                  distributed under the License is distributed on an "AS IS" BASIS,
+                  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                  See the License for the specific language governing permissions and
+                  limitations under the License.'
+
+  AWS::CloudFormation::Interface:
+
+    ParameterGroups:
+      -
+        Label:
+          default: "IAM Group Parameters"
+        Parameters:
+          - GroupName
+          - ManagedPolicy
+          - Path
+  
+    ParameterLabels:
+      GroupName:
+        default: Group Name
+      ManagedPolicy: 
+        default: Managed Policy
+      Path:
+        default: Path
+
+
+Parameters:
+
+  GroupName:
+    Type: String
+    Description: What will the group's name be?
+    
+  ManagedPolicy:
+    Type: String
+    Description: Would you like to associate a predefined Managed Policy with the group?
+    AllowedValues:
+    - Administrator
+    - Billing
+    - DatabaseAdministrator
+    - DataScientist
+    - DeveloperPowerUser
+    - NetworkAdministrator
+    - SecurityAuditor
+    - SupportUser
+    - SystemAdministrator
+    - View-Only
+    - None
+    Default: None
+
+  Path:
+    Type: String
+    Description: What IAM Path would you like to associate with your group?
+    AllowedPattern: (^\/$)|(^\/.*\/$)
+    Default: "/"
+
+
+Mappings:
+
+  ManagedPolicies:
+    Administrator: 
+      ARN: arn:aws:iam::aws:policy/AdministratorAccess
+      GroupRole: AdministratorAccess
+    Billing: 
+      ARN: arn:aws:iam::aws:policy/job-function/Billing
+      GroupRole: Billing
+    DatabaseAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/DatabaseAdministrator
+      GroupRole: DatabaseAdministrator
+    DataScientist: 
+      ARN: arn:aws:iam::aws:policy/job-function/DataScientist
+      GroupRole: DataScientist
+    DeveloperPowerUser: 
+      ARN: arn:aws:iam::aws:policy/PowerUserAccess
+      GroupRole: PowerUserAccess
+    NetworkAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/NetworkAdministrator
+      GroupRole: NetworkAdministrator
+    SecurityAuditor: 
+      ARN: arn:aws:iam::aws:policy/SecurityAudit
+      GroupRole: SecurityAudit
+    SupportUser: 
+      ARN: arn:aws:iam::aws:policy/job-function/SupportUser
+      GroupRole: SupportUser
+    SystemAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/SystemAdministrator
+      GroupRole: SystemAdministrator
+    View-Only: 
+      ARN: arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+      GroupRole: ViewOnlyAccess
+    None: 
+      ARN: arn:aws:iam::aws:policy/NoAccess
+      GroupRole: NoAccess
+
+
+Conditions:
+
+  hasManagedPolicy:
+    !Not [!Equals [!Ref ManagedPolicy, "None"]]
+
+
+Resources:
+
+  Group:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Join ["", [!Ref "AWS::Region", !Ref GroupName]]
+      ManagedPolicyArns: 
+        - !If [hasManagedPolicy, !FindInMap [ManagedPolicies, !Ref ManagedPolicy, ARN], !Ref "AWS::NoValue"]
+      Path: !Ref Path
+
+
+Outputs:
+
+  GroupName:
+    Description: The name of the IAM Group created by this stack
+    Value: !Ref Group
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", !Ref "AWS::Region", "group-name"]]
+
+  GroupArn:
+    Description: The ARN of the IAM Group created by this stack
+    Value: !GetAtt Group.Arn
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", !Ref "AWS::Region", "arn"]]

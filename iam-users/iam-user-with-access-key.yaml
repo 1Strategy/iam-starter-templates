@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: This template provisions a single IAM User and an IAM User Access Key
+  
+
+Metadata:
+
+  Authors:
+    Description:  Will Nave (will@1strategy.com)
+
+  Purpose:
+    Description: "This template is used to create a stack that implements a single IAM User with an accompanying IAM Access Key.  
+                  The user can be associated with an IAM Group and/or one of several Managed Policies offered by AWS.  Each managed 
+                  policy maps to a traditional user job function/role. The stack exports both the user name and ARN, and outputs
+                  the access key id and secret on successful deployment."
+
+  License:
+    Description: 'Copyright 2019 1Strategy
+
+                  Licensed under the Apache License, Version 2.0 (the "License");
+                  you may not use this file except in compliance with the License.
+                  You may obtain a copy of the License at
+
+                      http://www.apache.org/licenses/LICENSE-2.0
+
+                  Unless required by applicable law or agreed to in writing, software
+                  distributed under the License is distributed on an "AS IS" BASIS,
+                  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                  See the License for the specific language governing permissions and
+                  limitations under the License.'
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "IAM User Account Parameters"
+        Parameters:
+          - Group
+          - ManagedPolicy
+          - Password
+          - PasswordResetRequired
+          - Path
+          - UserName
+    ParameterLabels:
+      Group:
+        default: IAM Group
+      ManagedPolicy:
+        default: Managed Policy
+      Password:
+        default: User Password
+      PasswordResetRequired:
+        default: Password Reset required
+      Path:
+        default: Path
+      UserName: 
+        default: User Name
+
+
+Parameters:
+
+  Group:
+    Type: String
+    Description: Would you like to add this user to an IAM Group, or list of IAM Groups?
+    ConstraintDescription: Must be a comma separated list of IAM Group names (group1,group2,group3)
+    Default: "None"
+
+  ManagedPolicy:
+    Type: String
+    Description: Would you like to associate a predefined Managed Policy with the user?
+    AllowedValues:
+    - Administrator
+    - Billing
+    - DatabaseAdministrator
+    - DataScientist
+    - DeveloperPowerUser
+    - NetworkAdministrator
+    - SecurityAuditor
+    - SupportUser
+    - SystemAdministrator
+    - View-Only
+    - None
+    Default: None
+
+  Password:
+    Type: String
+    Description: Please enter a password 
+    ConstraintDescription: Password must be between 8 and 32 characters, start with lowercase or uppercase letter, and can be alphanumeric with the following special characters !@#$%& 
+    NoEcho: true
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9!@#$%&]{8,32}$
+
+  PasswordResetRequired:
+    Type: String
+    Description: Do you want to require users to create a new password on first login?
+    ConstraintDescription: Must be a boolean value of true or false
+    AllowedValues: 
+    - "true"
+    - "false"
+
+  Path:
+    Type: String
+    Description: What IAM Path would you like to associate with the User?
+    AllowedPattern: (^\/$)|(^\/.*\/$)
+    Default: "/"
+
+  UserName:
+    Type: String
+    Description: Would you like to define a UserName for the IAM User?
+    AllowedPattern: ^[\w+=,.@-]{1,64}$
+    ConstraintDescription: This parameter allows a string of characters consisting of upper and lowercase alphanumeric characters with no spaces, and the following special characters [\w+=,.@-]+
+    Default: "None"
+
+
+Mappings:
+
+  ManagedPolicies:
+    Administrator: 
+      ARN: arn:aws:iam::aws:policy/AdministratorAccess
+      GroupRole: AdministratorAccess
+    Billing: 
+      ARN: arn:aws:iam::aws:policy/job-function/Billing
+      GroupRole: Billing
+    DatabaseAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/DatabaseAdministrator
+      GroupRole: DatabaseAdministrator
+    DataScientist: 
+      ARN: arn:aws:iam::aws:policy/job-function/DataScientist
+      GroupRole: DataScientist
+    DeveloperPowerUser: 
+      ARN: arn:aws:iam::aws:policy/PowerUserAccess
+      GroupRole: PowerUserAccess
+    NetworkAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/NetworkAdministrator
+      GroupRole: NetworkAdministrator
+    SecurityAuditor: 
+      ARN: arn:aws:iam::aws:policy/SecurityAudit
+      GroupRole: SecurityAudit
+    SupportUser: 
+      ARN: arn:aws:iam::aws:policy/job-function/SupportUser
+      GroupRole: SupportUser
+    SystemAdministrator: 
+      ARN: arn:aws:iam::aws:policy/job-function/SystemAdministrator
+      GroupRole: SystemAdministrator
+    View-Only: 
+      ARN: arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+      GroupRole: ViewOnlyAccess
+    None: 
+      ARN: arn:aws:iam::aws:policy/NoAccess
+      GroupRole: NoAccess
+
+
+Conditions:
+
+  hasManagedPolicy:
+    !Not [!Equals [!Ref ManagedPolicy, "None"]]
+
+  hasUserName: 
+    !Not [!Equals [!Ref UserName, "None"]]
+
+  hasGroup:
+    !Not [!Equals [!Ref Group, "None"]]
+
+
+Resources:
+
+  User:
+    Type: AWS::IAM::User
+    Properties:
+      Groups: 
+        - !If [hasGroup, !Ref Group, !Ref "AWS::NoValue"]
+      LoginProfile:
+        Password: !Ref Password
+        PasswordResetRequired: !Ref PasswordResetRequired
+      ManagedPolicyArns:
+        - !If [hasManagedPolicy, !FindInMap [ManagedPolicies, !Ref ManagedPolicy, ARN], !Ref "AWS::NoValue"]
+      Path: !Ref Path
+      UserName: !If [hasUserName, !Ref UserName, !Ref "AWS::NoValue"]
+
+  AccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties: 
+      UserName: !Ref User
+
+
+Outputs:
+
+  UserName: 
+    Description: The UserName associated with the IAM User account
+    Value: !Ref User
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", "user-name"]]
+
+  UserARN:
+    Description: The ARN associated with the IAM User account
+    Value: !GetAtt User.Arn
+    Export:
+      Name: !Join ["-", [!Ref "AWS::StackName", "user-arn"]]
+    
+  AccessKeyId:
+    Description: the Access Key Id 
+    Value: !Ref AccessKey
+    
+  AccessKeySecret:
+    Description: the Access Key Secret
+    Value: !GetAtt AccessKey.SecretAccessKey
